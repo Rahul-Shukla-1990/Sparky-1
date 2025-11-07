@@ -1,0 +1,2251 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Main Operations Display – Maritime Intelligence Demo</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.css"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #020817;
+        --bg-alt: #071326;
+        --panel: rgba(14, 25, 45, 0.82);
+        --panel-light: rgba(244, 249, 255, 0.96);
+        --accent: #4f9bff;
+        --accent-strong: #38bdf8;
+        --danger: #f97316;
+        --text: #e2e8f0;
+        --muted: #94a3b8;
+        --success: #34d399;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+        background: radial-gradient(circle at 20% 20%, #10213d, transparent 60%),
+          radial-gradient(circle at 80% 80%, #061129, transparent 55%),
+          linear-gradient(160deg, #000814 0%, #011029 40%, #001b2e 100%);
+        color: var(--text);
+        min-height: 100vh;
+        overflow: hidden;
+      }
+
+      .app-shell {
+        position: relative;
+        width: 100vw;
+        height: 100vh;
+      }
+
+      .map-stage {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+      }
+
+      .map-stage::before {
+        content: "";
+        position: absolute;
+        inset: -50%;
+        background-image: radial-gradient(rgba(15, 118, 195, 0.08) 1px, transparent 1px);
+        background-size: 90px 90px;
+        opacity: 0.35;
+        animation: gridPulse 12s linear infinite;
+        pointer-events: none;
+      }
+
+      .map-stage::after {
+        content: "";
+        position: absolute;
+        inset: -30%;
+        background: radial-gradient(
+          circle,
+          rgba(56, 189, 248, 0.16) 0%,
+          rgba(56, 189, 248, 0.08) 35%,
+          transparent 70%
+        );
+        mix-blend-mode: screen;
+        animation: radarSweep 8s linear infinite;
+        pointer-events: none;
+      }
+
+      #map {
+        width: 100%;
+        height: 100%;
+      }
+
+      @keyframes radarSweep {
+        0% {
+          transform: rotate(0deg) scale(1);
+          opacity: 0.65;
+        }
+        70% {
+          opacity: 0.4;
+        }
+        100% {
+          transform: rotate(360deg) scale(1.25);
+          opacity: 0.05;
+        }
+      }
+
+      @keyframes gridPulse {
+        0% {
+          transform: rotate(0deg) scale(1);
+        }
+        50% {
+          transform: rotate(1.5deg) scale(1.05);
+        }
+        100% {
+          transform: rotate(0deg) scale(1);
+        }
+      }
+
+      .toolbar {
+        position: absolute;
+        top: 50%;
+        right: 28px;
+        transform: translateY(-50%);
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        z-index: 12;
+      }
+
+      .toolbar button {
+        width: 46px;
+        height: 46px;
+        border-radius: 14px;
+        border: 1px solid rgba(59, 130, 246, 0.4);
+        background: rgba(8, 20, 40, 0.82);
+        color: var(--text);
+        font-size: 0.7rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 0.2rem;
+      }
+
+      .toolbar button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 35px rgba(33, 150, 243, 0.35);
+      }
+
+      .layer-toggle {
+        position: absolute;
+        top: 24px;
+        right: 90px;
+        background: rgba(9, 21, 41, 0.88);
+        backdrop-filter: blur(12px);
+        border-radius: 18px;
+        padding: 1rem 1.2rem;
+        border: 1px solid rgba(59, 130, 246, 0.35);
+        color: var(--text);
+        z-index: 11;
+        min-width: 260px;
+        box-shadow: 0 18px 40px rgba(15, 23, 42, 0.45);
+      }
+
+      .layer-toggle h3 {
+        margin: 0 0 0.9rem;
+        font-size: 0.95rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: rgba(226, 232, 240, 0.85);
+      }
+
+      .layer-toggle h4 {
+        margin: 1rem 0 0.6rem;
+        font-size: 0.78rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: rgba(148, 163, 184, 0.9);
+      }
+
+      .layer-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 0.6rem;
+        font-size: 0.86rem;
+      }
+
+      .layer-item:last-child {
+        margin-bottom: 0;
+      }
+
+      .layer-item label {
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+        cursor: pointer;
+      }
+
+      .layer-item input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        accent-color: var(--accent);
+      }
+
+      .layer-section + .layer-section {
+        border-top: 1px solid rgba(51, 94, 177, 0.35);
+        padding-top: 0.85rem;
+        margin-top: 0.85rem;
+      }
+
+      .custom-layer-panel {
+        background: rgba(11, 21, 41, 0.65);
+        border: 1px solid rgba(59, 130, 246, 0.22);
+        border-radius: 12px;
+        padding: 0.75rem;
+        margin-top: 0.4rem;
+      }
+
+      .custom-layer-panel input[type="file"] {
+        width: 100%;
+        margin-bottom: 0.5rem;
+      }
+
+      .custom-layer-panel label {
+        font-size: 0.75rem;
+        display: block;
+        margin-bottom: 0.35rem;
+      }
+
+      .custom-layer-panel .controls {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.4rem 0.6rem;
+        margin-bottom: 0.5rem;
+      }
+
+      .custom-layer-panel .controls .full {
+        grid-column: 1 / -1;
+      }
+
+      .custom-layer-panel button {
+        width: 100%;
+        padding: 0.45rem 0.6rem;
+        border-radius: 10px;
+        border: 1px solid rgba(56, 189, 248, 0.55);
+        background: rgba(15, 118, 220, 0.18);
+        color: #e0f2fe;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+      }
+
+      .custom-layer-panel button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 12px 32px rgba(37, 99, 235, 0.25);
+      }
+
+      .custom-layer-list {
+        margin-top: 0.6rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.55rem;
+        max-height: 180px;
+        overflow-y: auto;
+      }
+
+      .custom-layer-note {
+        font-size: 0.68rem;
+        color: rgba(190, 227, 248, 0.75);
+        margin: 0.45rem 0 0;
+      }
+
+      .muted {
+        color: rgba(148, 163, 184, 0.75);
+        font-size: 0.72rem;
+      }
+
+      .custom-layer-item {
+        background: rgba(15, 23, 42, 0.72);
+        border: 1px solid rgba(59, 130, 246, 0.25);
+        border-radius: 10px;
+        padding: 0.6rem;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.45rem 0.6rem;
+        font-size: 0.75rem;
+      }
+
+      .custom-layer-item header {
+        grid-column: 1 / -1;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-weight: 600;
+        color: rgba(224, 242, 254, 0.92);
+      }
+
+      .custom-layer-item .controls {
+        display: contents;
+      }
+
+      .custom-layer-item label {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        font-size: 0.7rem;
+        color: rgba(191, 219, 254, 0.9);
+      }
+
+      .custom-layer-item input[type="range"] {
+        width: 100%;
+      }
+
+      .custom-layer-item .actions {
+        grid-column: 1 / -1;
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.4rem;
+      }
+
+      .custom-layer-item .actions button {
+        border: 1px solid rgba(71, 85, 105, 0.6);
+        background: rgba(15, 23, 42, 0.6);
+        color: rgba(226, 232, 240, 0.8);
+        padding: 0.3rem 0.5rem;
+        border-radius: 8px;
+        cursor: pointer;
+      }
+
+      .custom-layer-item .actions button:hover {
+        border-color: rgba(56, 189, 248, 0.8);
+        color: #e0f2fe;
+      }
+
+      .ai-panel {
+        position: absolute;
+        top: 28px;
+        left: 28px;
+        width: 320px;
+        background: var(--panel-light);
+        border-radius: 22px;
+        box-shadow: 0 25px 45px rgba(8, 20, 40, 0.45);
+        padding: 1.4rem 1.6rem;
+        color: #0b1623;
+        transform: translateY(0);
+        transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.3s ease;
+        z-index: 15;
+      }
+
+      .ai-panel.collapsed {
+        transform: translate(-340px, 0);
+        opacity: 0.4;
+        pointer-events: none;
+      }
+
+      .ai-panel h2 {
+        margin: 0;
+        font-size: 1rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #0f172a;
+      }
+
+      .ai-panel p.hint {
+        margin: 0.4rem 0 1rem;
+        font-size: 0.82rem;
+        color: rgba(15, 23, 42, 0.65);
+      }
+
+      .ai-panel textarea {
+        width: 100%;
+        min-height: 90px;
+        border-radius: 12px;
+        border: 1px solid rgba(30, 64, 175, 0.2);
+        padding: 0.75rem 0.9rem;
+        font-family: inherit;
+        resize: vertical;
+        background: rgba(241, 245, 255, 0.85);
+      }
+
+      .ai-actions {
+        display: flex;
+        gap: 0.75rem;
+        margin-top: 0.85rem;
+      }
+
+      .ai-actions button {
+        flex: 1;
+        border: none;
+        border-radius: 12px;
+        padding: 0.65rem 0.9rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+      }
+
+      .ai-actions button.run {
+        background: linear-gradient(135deg, #2563eb, #38bdf8);
+        color: #f8fafc;
+      }
+
+      .ai-actions button.report {
+        background: rgba(148, 163, 184, 0.18);
+        color: #0f172a;
+        border: 1px solid rgba(51, 65, 85, 0.2);
+      }
+
+      .ai-actions button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 10px 25px rgba(37, 99, 235, 0.3);
+      }
+
+      .ai-output {
+        margin-top: 1.1rem;
+        background: rgba(241, 245, 255, 0.78);
+        border-radius: 14px;
+        padding: 0.9rem 1rem;
+        max-height: 220px;
+        overflow-y: auto;
+        font-size: 0.88rem;
+        line-height: 1.45;
+        border: 1px solid rgba(148, 163, 184, 0.25);
+      }
+
+      .ai-output strong {
+        display: block;
+        margin-bottom: 0.35rem;
+        color: #0b1623;
+      }
+
+      .ai-toggle-button {
+        position: absolute;
+        top: 32px;
+        left: 350px;
+        width: 46px;
+        height: 46px;
+        border-radius: 14px;
+        border: none;
+        background: rgba(8, 20, 40, 0.9);
+        color: var(--text);
+        cursor: pointer;
+        z-index: 16;
+        box-shadow: 0 15px 35px rgba(8, 20, 40, 0.45);
+        transition: transform 0.25s ease;
+      }
+
+      .ai-panel.collapsed + .ai-toggle-button {
+        transform: translateX(-320px);
+      }
+
+      .aoi-button {
+        position: absolute;
+        bottom: 28px;
+        left: 32px;
+        background: rgba(12, 25, 45, 0.9);
+        color: var(--text);
+        border: 1px solid rgba(59, 130, 246, 0.35);
+        border-radius: 12px;
+        padding: 0.65rem 1.1rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        font-size: 0.78rem;
+        cursor: pointer;
+        z-index: 12;
+      }
+
+      .aoi-drawer {
+        position: absolute;
+        left: 32px;
+        bottom: 92px;
+        width: 320px;
+        background: var(--panel-light);
+        color: #0b1623;
+        border-radius: 20px;
+        box-shadow: 0 25px 45px rgba(8, 20, 40, 0.45);
+        padding: 1.2rem 1.4rem;
+        transition: transform 0.35s ease, opacity 0.25s ease;
+        transform: translateY(30px);
+        opacity: 0;
+        pointer-events: none;
+        z-index: 14;
+        max-height: 320px;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+
+      .aoi-drawer.open {
+        transform: translateY(0);
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      .aoi-actions button {
+        display: block;
+        width: 100%;
+        margin-bottom: 0.45rem;
+        border-radius: 10px;
+        border: 1px solid rgba(30, 64, 175, 0.25);
+        padding: 0.6rem 0.9rem;
+        background: rgba(226, 232, 240, 0.6);
+        cursor: pointer;
+        font-weight: 600;
+      }
+
+      .aoi-actions button:last-child {
+        margin-bottom: 0;
+      }
+
+      .aoi-list {
+        max-height: 120px;
+        overflow-y: auto;
+        border-radius: 12px;
+        border: 1px solid rgba(148, 163, 184, 0.28);
+        padding: 0.5rem 0.75rem;
+        background: rgba(241, 245, 255, 0.7);
+        font-size: 0.85rem;
+      }
+
+      .aoi-status {
+        font-size: 0.8rem;
+        color: rgba(15, 23, 42, 0.65);
+      }
+
+      .vessel-panel {
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 360px;
+        height: 100%;
+        background: rgba(9, 21, 41, 0.94);
+        border-left: 1px solid rgba(59, 130, 246, 0.35);
+        padding: 1.6rem 1.4rem;
+        color: var(--text);
+        transform: translateX(100%);
+        transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+        z-index: 14;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+      }
+
+      .vessel-panel.open {
+        transform: translateX(0);
+      }
+
+      .vessel-panel header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .vessel-panel header h3 {
+        margin: 0;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        font-size: 0.95rem;
+      }
+
+      .vessel-panel header button {
+        border: none;
+        background: rgba(30, 41, 59, 0.65);
+        color: var(--text);
+        border-radius: 50%;
+        width: 32px;
+        height: 32px;
+        cursor: pointer;
+      }
+
+      .identity-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.65rem 0.75rem;
+        font-size: 0.85rem;
+        background: rgba(15, 23, 42, 0.6);
+        padding: 1rem;
+        border-radius: 16px;
+        border: 1px solid rgba(59, 130, 246, 0.25);
+      }
+
+      .identity-grid span.label {
+        text-transform: uppercase;
+        font-size: 0.7rem;
+        letter-spacing: 0.1em;
+        color: rgba(148, 163, 184, 0.85);
+      }
+
+      .identity-grid span.value {
+        font-weight: 600;
+        color: var(--text);
+      }
+
+      .identity-grid .full {
+        grid-column: span 2;
+      }
+
+      .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.35rem 0.7rem;
+        border-radius: 999px;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        background: rgba(14, 116, 144, 0.5);
+      }
+
+      .status-pill.offline {
+        background: rgba(234, 88, 12, 0.32);
+        color: #fb923c;
+      }
+
+      .metric-card {
+        background: rgba(15, 23, 42, 0.6);
+        border: 1px solid rgba(59, 130, 246, 0.25);
+        border-radius: 16px;
+        padding: 0.85rem 1rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.85rem;
+      }
+
+      .metric-card strong {
+        font-size: 1.2rem;
+        color: var(--accent-strong);
+      }
+
+      .tabs {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 0.4rem;
+      }
+
+      .tabs button {
+        flex: 1;
+        border: 1px solid rgba(59, 130, 246, 0.25);
+        background: rgba(15, 23, 42, 0.55);
+        color: var(--muted);
+        border-radius: 12px;
+        padding: 0.55rem 0.6rem;
+        cursor: pointer;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.07em;
+      }
+
+      .tabs button.active {
+        background: rgba(56, 189, 248, 0.2);
+        color: var(--text);
+        border-color: rgba(56, 189, 248, 0.45);
+      }
+
+      .tab-panel {
+        display: none;
+        font-size: 0.82rem;
+        line-height: 1.5;
+        background: rgba(15, 23, 42, 0.55);
+        border-radius: 14px;
+        border: 1px solid rgba(59, 130, 246, 0.25);
+        padding: 0.9rem 1rem;
+        max-height: 180px;
+        overflow-y: auto;
+      }
+
+      .tab-panel.active {
+        display: block;
+      }
+
+      .events-panel {
+        position: absolute;
+        right: 28px;
+        bottom: 28px;
+        width: 320px;
+        max-height: 280px;
+        background: rgba(9, 21, 41, 0.9);
+        border-radius: 18px;
+        border: 1px solid rgba(59, 130, 246, 0.28);
+        padding: 1.1rem 1.25rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        overflow: hidden;
+        z-index: 13;
+      }
+
+      .events-panel h4 {
+        margin: 0;
+        font-size: 0.9rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .event-item {
+        padding: 0.65rem 0.75rem;
+        border-radius: 12px;
+        background: rgba(15, 23, 42, 0.55);
+        border: 1px solid rgba(56, 189, 248, 0.18);
+        font-size: 0.8rem;
+        line-height: 1.4;
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 0.35rem;
+        align-items: center;
+      }
+
+      .event-item span.timestamp {
+        font-size: 0.7rem;
+        color: rgba(148, 163, 184, 0.75);
+        grid-column: 1 / -1;
+      }
+
+      .event-item.dark {
+        border-color: rgba(234, 88, 12, 0.4);
+      }
+
+      .event-item .badge {
+        padding: 0.2rem 0.55rem;
+        border-radius: 999px;
+        font-size: 0.65rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        background: rgba(56, 189, 248, 0.18);
+      }
+
+      .event-item.dark .badge {
+        background: rgba(234, 88, 12, 0.22);
+        color: #fb923c;
+      }
+
+      .vessel-marker {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: radial-gradient(circle at 30% 30%, #dbeafe, #38bdf8 55%, rgba(8, 145, 178, 0.6));
+        box-shadow: 0 0 16px rgba(59, 130, 246, 0.75);
+        border: 1px solid rgba(148, 197, 255, 0.6);
+        transition: transform 0.4s ease, box-shadow 0.4s ease;
+        position: relative;
+      }
+
+      .vessel-marker::after {
+        content: "";
+        position: absolute;
+        inset: -6px;
+        border-radius: 50%;
+        border: 1px solid rgba(148, 197, 255, 0.5);
+        animation: beacon 2.4s ease-in-out infinite;
+      }
+
+      .vessel-marker.silent {
+        background: radial-gradient(circle at 30% 30%, #fed7aa, #fb923c 60%, rgba(180, 83, 9, 0.7));
+        box-shadow: 0 0 18px rgba(249, 115, 22, 0.8);
+      }
+
+      .vessel-marker.active {
+        transform: scale(1.2);
+        box-shadow: 0 0 24px rgba(255, 255, 255, 0.95);
+      }
+
+      @keyframes beacon {
+        0% {
+          transform: scale(0.9);
+          opacity: 0.65;
+        }
+        70% {
+          transform: scale(1.2);
+          opacity: 0;
+        }
+        100% {
+          transform: scale(0.9);
+          opacity: 0;
+        }
+      }
+
+      .sar-pulse {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(134, 239, 172, 0.65), rgba(34, 197, 94, 0.1));
+        box-shadow: 0 0 25px rgba(34, 197, 94, 0.7);
+        animation: sarPulse 1.8s ease-out infinite;
+        border: 1px solid rgba(16, 185, 129, 0.6);
+      }
+
+      @keyframes sarPulse {
+        0% {
+          transform: scale(0.4);
+          opacity: 0.85;
+        }
+        80% {
+          transform: scale(1.6);
+          opacity: 0;
+        }
+        100% {
+          transform: scale(0.4);
+          opacity: 0;
+        }
+      }
+
+      .toast {
+        position: absolute;
+        top: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(15, 23, 42, 0.92);
+        border: 1px solid rgba(56, 189, 248, 0.35);
+        border-radius: 12px;
+        padding: 0.8rem 1.1rem;
+        color: var(--text);
+        font-size: 0.85rem;
+        box-shadow: 0 15px 35px rgba(15, 23, 42, 0.45);
+        z-index: 30;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.3s ease, transform 0.3s ease;
+      }
+
+      .toast.show {
+        opacity: 1;
+        transform: translate(-50%, 0);
+      }
+
+      .hint-line {
+        font-size: 0.78rem;
+        color: rgba(15, 23, 42, 0.65);
+        margin: 0.5rem 0 0;
+      }
+
+      .ai-examples {
+        margin-top: 0.6rem;
+      }
+
+      .ai-examples button {
+        border: none;
+        background: rgba(226, 232, 240, 0.55);
+        border-radius: 10px;
+        padding: 0.45rem 0.55rem;
+        font-size: 0.75rem;
+        margin-bottom: 0.35rem;
+        cursor: pointer;
+      }
+
+      .ai-examples button:hover {
+        background: rgba(148, 163, 184, 0.35);
+      }
+
+      .badge.hi {
+        font-weight: 600;
+        color: #0369a1;
+      }
+
+      @media (max-width: 1200px) {
+        .ai-panel,
+        .aoi-drawer,
+        .events-panel,
+        .layer-toggle,
+        .toolbar,
+        .ai-toggle-button,
+        .aoi-button {
+          transform: scale(0.9);
+          transform-origin: top left;
+        }
+
+        .vessel-panel {
+          width: 320px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app-shell">
+      <div class="ai-panel" id="aiPanel">
+        <h2>AI Assistant</h2>
+        <p class="hint">
+          Ask maritime intelligence questions in English or Hindi.
+        </p>
+        <textarea id="aiInput" placeholder="Show me tankers silent for 4 hrs near Gulf of Oman"></textarea>
+        <div class="ai-actions">
+          <button class="run" id="runQuery">Run Query</button>
+          <button class="report" id="generateReport">Generate Report</button>
+        </div>
+        <div class="ai-examples">
+          <button data-example="Show me all tankers dark for 4 hours in the Gulf of Oman.">
+            उदाहरण: Gulf of Oman dark tankers
+          </button>
+          <button data-example="List vessels that rendezvoused within 20 NM of Socotra this week.">
+            उदाहरण: Socotra rendezvous
+          </button>
+          <button data-example="Find first-time visitors to Kochi in last 30 days.">
+            उदाहरण: Kochi visitors
+          </button>
+        </div>
+        <div class="ai-output" id="aiOutput">
+          <strong>Insights Console</strong>
+          Submit a query to see AI-generated findings and recommended follow-ups.
+        </div>
+        <p class="hint-line">
+          <span class="badge hi">हिंदी / EN</span> Dual-language summaries provided where data allows.
+        </p>
+      </div>
+      <button class="ai-toggle-button" id="aiToggle">AI</button>
+
+      <div class="map-stage">
+        <div id="map"></div>
+        <div class="toolbar">
+          <button data-tool="layers">Layers</button>
+          <button data-tool="filters">Filters</button>
+          <button data-tool="heatmap">Heatmap</button>
+          <button data-tool="playback">Playback</button>
+          <button data-tool="search">Search</button>
+          <button data-tool="watchlists">Watch</button>
+          <button data-tool="ports">Ports</button>
+        </div>
+        <div class="layer-toggle">
+          <h3>Layer Controls</h3>
+          <div class="layer-section">
+            <h4>Operational</h4>
+            <div class="layer-item">
+              <label><input type="checkbox" data-layer="ais" checked /> AIS Tracks</label>
+              <span>On / Off</span>
+            </div>
+            <div class="layer-item">
+              <label><input type="checkbox" data-layer="sar" checked /> SAR Sweeps</label>
+              <span>Live</span>
+            </div>
+            <div class="layer-item">
+              <label><input type="checkbox" data-layer="aoiOverlays" /> AOI Templates</label>
+              <span>Regions</span>
+            </div>
+            <div class="layer-item">
+              <label><input type="checkbox" data-layer="undersea" /> Undersea Cables</label>
+              <span>Infra</span>
+            </div>
+            <div class="layer-item">
+              <label><input type="checkbox" data-layer="ports" /> Ports & Anchorages</label>
+              <span>POIs</span>
+            </div>
+            <div class="layer-item">
+              <label><input type="checkbox" data-layer="slocs" /> SLOCs & Chokepoints</label>
+              <span>Critical</span>
+            </div>
+            <div class="layer-item">
+              <label><input type="checkbox" data-layer="heatmap" /> Daily IOR Heatmap</label>
+              <span>Risk</span>
+            </div>
+          </div>
+          <div class="layer-section">
+            <h4>Legal Boundaries</h4>
+            <div class="layer-item">
+              <label><input type="checkbox" data-layer="indiaOutline" checked /> India Outline</label>
+              <span>Official</span>
+            </div>
+            <div class="layer-item">
+              <label><input type="checkbox" data-layer="eez" /> EEZ / IMBL</label>
+              <span>Global</span>
+            </div>
+            <div class="layer-item">
+              <label><input type="checkbox" data-layer="territorialSea" /> Territorial Sea</label>
+              <span>12 NM</span>
+            </div>
+            <div class="layer-item">
+              <label><input type="checkbox" data-layer="contiguousZone" /> Contiguous Zone</label>
+              <span>24 NM</span>
+            </div>
+            <div class="layer-item">
+              <label><input type="checkbox" data-layer="internalWaters" /> Internal Waters</label>
+              <span>Harbours</span>
+            </div>
+            <div class="layer-item">
+              <label><input type="checkbox" data-layer="archipelagicWaters" /> Archipelagic Waters</label>
+              <span>Islands</span>
+            </div>
+            <div class="layer-item">
+              <label><input type="checkbox" data-layer="highSeas" /> High Seas</label>
+              <span>Beyond</span>
+            </div>
+            <div class="layer-item">
+              <label><input type="checkbox" data-layer="extendedShelf" /> Extended Shelf</label>
+              <span>Claim</span>
+            </div>
+          </div>
+          <div class="layer-section">
+            <h4>Custom Intelligence</h4>
+            <div class="custom-layer-panel">
+              <label for="customLayerFile">Upload geospatial overlay</label>
+              <input
+                type="file"
+                id="customLayerFile"
+                accept=".geojson,.json,.kml,.kmz,.shp,.zip,.gpkg"
+              />
+              <div class="controls">
+                <label>
+                  Stroke Color
+                  <input type="color" id="customLayerColor" value="#38bdf8" />
+                </label>
+                <label>
+                  Line Width
+                  <input type="range" id="customLayerWidth" min="1" max="10" value="3" />
+                </label>
+                <label class="full">
+                  Fill Opacity
+                  <input type="range" id="customLayerFillOpacity" min="0" max="1" step="0.05" value="0.35" />
+                </label>
+                <label class="full">
+                  Point/Line Opacity
+                  <input type="range" id="customLayerOpacity" min="0" max="1" step="0.05" value="0.9" />
+                </label>
+              </div>
+              <button id="addCustomLayer">Add Layer</button>
+              <p class="custom-layer-note">
+                GeoJSON loads instantly in this demo. Other formats are earmarked for the GDAL conversion
+                microservice in the production stack.
+              </p>
+              <div class="custom-layer-list" id="customLayerList">
+                <div class="muted">No custom layers yet.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <button class="aoi-button" id="aoiToggle">AOIs</button>
+      <div class="aoi-drawer" id="aoiDrawer">
+        <h3>Area of Interest Tools</h3>
+        <div class="aoi-actions">
+          <button id="drawAoi">Draw AOI</button>
+          <button id="saveAoi">Save AOI</button>
+          <button id="queryAoiIngress">Find vessels entering AOI</button>
+          <button id="queryAoiDark">Dark spots in AOI</button>
+          <button id="queryAoiLoitering">Loitering inside AOI</button>
+          <button id="downloadAoi">Download historical tracks (.csv)</button>
+        </div>
+        <div class="aoi-list" id="aoiList">No AOIs saved yet.</div>
+        <div class="aoi-status" id="aoiStatus">Activate draw to map a polygonal AOI.</div>
+      </div>
+
+      <aside class="vessel-panel" id="vesselPanel">
+        <header>
+          <h3>Vessel Snapshot</h3>
+          <button id="closeVessel">×</button>
+        </header>
+        <div class="identity-grid" id="vesselIdentity">
+          <div class="full">
+            <span class="label">Vessel</span>
+            <span class="value" data-field="name">—</span>
+          </div>
+          <div>
+            <span class="label">MMSI</span>
+            <span class="value" data-field="mmsi">—</span>
+          </div>
+          <div>
+            <span class="label">IMO</span>
+            <span class="value" data-field="imo">—</span>
+          </div>
+          <div>
+            <span class="label">Flag</span>
+            <span class="value" data-field="flag">—</span>
+          </div>
+          <div>
+            <span class="label">Type</span>
+            <span class="value" data-field="type">—</span>
+          </div>
+          <div>
+            <span class="label">Dimensions</span>
+            <span class="value" data-field="dimensions">—</span>
+          </div>
+          <div>
+            <span class="label">Draft</span>
+            <span class="value" data-field="draught">—</span>
+          </div>
+          <div>
+            <span class="label">Built</span>
+            <span class="value" data-field="build">—</span>
+          </div>
+          <div class="full">
+            <span class="label">AIS Status</span>
+            <span class="value">
+              <span class="status-pill" data-field="status">Offline</span>
+            </span>
+          </div>
+          <div class="full">
+            <span class="label">Identity Integrity</span>
+            <span class="value" data-field="identityScore">—</span>
+          </div>
+        </div>
+        <div class="metric-card">
+          <div>
+            <div>Speed / Course</div>
+            <strong data-field="speedCourse">—</strong>
+          </div>
+          <div>
+            <div>Last Update</div>
+            <strong data-field="lastUpdate">—</strong>
+          </div>
+        </div>
+        <div class="tabs">
+          <button class="active" data-tab="track">Track History</button>
+          <button data-tab="ports">Port Visits</button>
+          <button data-tab="ownership">Ownership</button>
+          <button data-tab="alerts">Alerts</button>
+          <button data-tab="predictions">Predictions</button>
+        </div>
+        <div class="tab-panel active" data-panel="track" id="tabTrack">Playback timeline coming online with backend feed.</div>
+        <div class="tab-panel" data-panel="ports">Last 20 port calls will stream from Mongo/PostGIS once available.</div>
+        <div class="tab-panel" data-panel="ownership">Shell-company tracing and UBO timeline placeholder.</div>
+        <div class="tab-panel" data-panel="alerts">Dark activity, spoofing, and deviation alerts will render here.</div>
+        <div class="tab-panel" data-panel="predictions">ETA, route prediction, and next-port scoring will appear here.</div>
+      </aside>
+
+      <div class="events-panel" id="eventsPanel">
+        <h4>Live Events</h4>
+        <div class="event-stream" id="eventStream"></div>
+      </div>
+
+      <div class="toast" id="toast"></div>
+    </div>
+
+    <script src="https://unpkg.com/maplibre-gl@3.6.1/dist/maplibre-gl.js"></script>
+    <script>
+      const map = new maplibregl.Map({
+        container: "map",
+        style: "https://demotiles.maplibre.org/style.json",
+        center: [68, 10],
+        zoom: 4.2,
+        pitch: 45,
+        bearing: -10,
+      });
+
+      map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-left");
+
+      const vesselMarkers = new Map();
+      const sarMarkers = new Map();
+      const layerRegistry = new Map();
+      const customLayers = new Map();
+      const layersState = {
+        ais: true,
+        sar: true,
+        aoiOverlays: false,
+        eez: false,
+        indiaOutline: true,
+        territorialSea: false,
+        contiguousZone: false,
+        internalWaters: false,
+        archipelagicWaters: false,
+        highSeas: false,
+        extendedShelf: false,
+        undersea: false,
+        ports: false,
+        slocs: false,
+        heatmap: false,
+      };
+      let latestSnapshot = { vessels: [], sar_hits: [] };
+      let selectedVessel = null;
+      let drawingAoi = false;
+      let currentAoi = [];
+      const savedAoIs = [];
+
+      map.on("load", () => {
+        setLayerVisibility("indiaOutline", true);
+      });
+
+      const zoneStyles = {
+        india_outline: { fill: "rgba(59, 130, 246, 0.12)", outline: "rgba(191, 219, 254, 0.95)", width: 2.2 },
+        eez: { fill: "rgba(14, 165, 233, 0.08)", outline: "rgba(59, 130, 246, 0.35)", width: 1.6 },
+        territorial_sea: { fill: "rgba(96, 165, 250, 0.22)", outline: "rgba(59, 130, 246, 0.7)", width: 1.6 },
+        contiguous_zone: { fill: "rgba(56, 189, 248, 0.18)", outline: "rgba(37, 99, 235, 0.6)", width: 1.4 },
+        internal_waters: { fill: "rgba(14, 165, 233, 0.35)", outline: "rgba(2, 132, 199, 0.85)", width: 1.8 },
+        archipelagic_waters: { fill: "rgba(45, 212, 191, 0.28)", outline: "rgba(16, 185, 129, 0.75)", width: 1.6 },
+        high_seas: { fill: "rgba(59, 130, 246, 0.08)", outline: "rgba(148, 163, 184, 0.5)", width: 1.2 },
+        extended_continental_shelf: { fill: "rgba(37, 99, 235, 0.2)", outline: "rgba(30, 64, 175, 0.75)", width: 1.8 },
+      };
+
+      function showToast(message) {
+        const toast = document.getElementById("toast");
+        toast.textContent = message;
+        toast.classList.add("show");
+        setTimeout(() => toast.classList.remove("show"), 2800);
+      }
+
+      function updateVesselMarkers(vessels) {
+        vessels.forEach((vessel) => {
+          let record = vesselMarkers.get(vessel.mmsi);
+          if (!record) {
+            const el = document.createElement("div");
+            el.className = "vessel-marker";
+            el.dataset.mmsi = vessel.mmsi;
+            el.addEventListener("click", (event) => {
+              event.stopPropagation();
+              openVesselPanel(vessel.mmsi);
+            });
+            const marker = new maplibregl.Marker({ element: el, anchor: "center" })
+              .setLngLat([vessel.longitude, vessel.latitude])
+              .addTo(map);
+            record = { marker, element: el };
+            vesselMarkers.set(vessel.mmsi, record);
+          }
+          record.marker.setLngLat([vessel.longitude, vessel.latitude]);
+          record.element.classList.toggle("silent", vessel.status !== "on");
+          record.element.style.display = layersState.ais ? "block" : "none";
+          record.element.classList.toggle("active", vessel.mmsi === selectedVessel);
+        });
+      }
+
+      function syncSarMarkers(hits) {
+        const active = new Set();
+        hits.forEach((hit) => {
+          active.add(hit.id);
+          if (!sarMarkers.has(hit.id)) {
+            const el = document.createElement("div");
+            el.className = "sar-pulse";
+            const marker = new maplibregl.Marker({ element: el, anchor: "center" })
+              .setLngLat([hit.longitude, hit.latitude])
+              .addTo(map);
+            sarMarkers.set(hit.id, { marker, element: el, timeout: Date.now() + 18000 });
+          }
+        });
+        [...sarMarkers.entries()].forEach(([id, record]) => {
+          if (!active.has(id) && Date.now() > record.timeout) {
+            record.marker.remove();
+            sarMarkers.delete(id);
+          } else {
+            record.element.style.display = layersState.sar ? "block" : "none";
+          }
+        });
+      }
+
+      function renderEvents(alerts) {
+        const stream = document.getElementById("eventStream");
+        stream.innerHTML = "";
+        alerts.slice(-6).reverse().forEach((alert) => {
+          const div = document.createElement("div");
+          div.className = "event-item" + (alert.type === "ais-silence" ? " dark" : "");
+          const badgeText = alert.type === "sar" ? "SAR" : alert.type.replace("-", " ");
+          div.innerHTML = `
+            <span>${alert.message || "New event"}</span>
+            <span class="badge">${badgeText}</span>
+            <span class="timestamp">${alert.timestamp || ""}</span>
+          `;
+          stream.appendChild(div);
+        });
+      }
+
+      async function openVesselPanel(identifier) {
+        try {
+          const response = await fetch(`/vessels/${identifier}`);
+          const data = await response.json();
+          selectedVessel = identifier;
+          updateVesselIdentity(data);
+          highlightVesselTrack(identifier);
+          document.getElementById("vesselPanel").classList.add("open");
+          vesselMarkers.forEach((record, mmsi) => {
+            record.element.classList.toggle("active", mmsi === identifier);
+          });
+        } catch (error) {
+          console.error(error);
+          showToast("Unable to load vessel detail.");
+        }
+      }
+
+      function updateVesselIdentity(detail) {
+        const identity = detail.identity;
+        const live = detail.live_state || {};
+        const mapFields = {
+          name: identity.name,
+          mmsi: identity.mmsi,
+          imo: identity.imo,
+          flag: identity.flag,
+          type: identity.vessel_type,
+          dimensions: `${identity.length_m}m × ${identity.beam_m}m`,
+          draught: `${identity.draught_m}m`,
+          build: identity.build_year,
+          identityScore: `${detail.metrics.identity_integrity}/100`,
+        };
+        Object.entries(mapFields).forEach(([key, value]) => {
+          const node = document.querySelector(`[data-field="${key}"]`);
+          if (node) node.textContent = value ?? "—";
+        });
+        const statusPill = document.querySelector('[data-field="status"]');
+        if (statusPill) {
+          const status = live.status || "on";
+          statusPill.textContent = status === "on" ? "AIS On" : "Silent";
+          statusPill.classList.toggle("offline", status !== "on");
+        }
+        const speedCourse = document.querySelector('[data-field="speedCourse"]');
+        if (speedCourse) {
+          const sog = live.sog ?? detail.latest_message.sog;
+          const cog = live.cog ?? detail.latest_message.cog;
+          speedCourse.textContent = `${sog?.toFixed(1) ?? "-"} kn / ${cog?.toFixed(0) ?? "-"}°`;
+        }
+        const lastUpdate = document.querySelector('[data-field="lastUpdate"]');
+        if (lastUpdate) {
+          lastUpdate.textContent = detail.latest_message.timestamp.replace("T", " ");
+        }
+        const trackTab = document.getElementById("tabTrack");
+        if (trackTab) {
+          trackTab.innerHTML = detail.dark_events.length
+            ? `<strong>${detail.dark_events.length}</strong> dark segments flagged. Longest gap ${
+                detail.dark_events[0].gap_minutes.toFixed(0)
+              } minutes.`
+            : "Live playback ready – no suspicious gaps in last 24 hours.";
+        }
+      }
+
+      async function highlightVesselTrack(identifier) {
+        try {
+          const response = await fetch(`/vessels/${identifier}/track?lookback_hours=24`);
+          const track = await response.json();
+          const feature = {
+            type: "FeatureCollection",
+            features: [
+              {
+                type: "Feature",
+                geometry: {
+                  type: "LineString",
+                  coordinates: track.map((point) => [point.longitude, point.latitude]),
+                },
+                properties: {},
+              },
+            ],
+          };
+          if (!map.getSource("selected-track")) {
+            map.addSource("selected-track", { type: "geojson", data: feature });
+            map.addLayer({
+              id: "selected-track-line",
+              type: "line",
+              source: "selected-track",
+              paint: {
+                "line-color": "#4f46e5",
+                "line-width": 3,
+                "line-dasharray": [0.5, 1.2],
+              },
+            });
+          } else {
+            map.getSource("selected-track").setData(feature);
+          }
+          if (track.length) {
+            const last = track[track.length - 1];
+            map.easeTo({ center: [last.longitude, last.latitude], zoom: 6, duration: 1200 });
+          }
+        } catch (error) {
+          console.error(error);
+        }
+      }
+
+      function setLayerVisibility(layerKey, visible) {
+        if (layerKey === "ais") {
+          layersState.ais = visible;
+          vesselMarkers.forEach((record) => {
+            record.element.style.display = visible ? "block" : "none";
+          });
+          return;
+        }
+        if (layerKey === "sar") {
+          layersState.sar = visible;
+          sarMarkers.forEach((record) => {
+            record.element.style.display = visible ? "block" : "none";
+          });
+          return;
+        }
+        const mapping = {
+          aoiOverlays: [{ key: "aoi_templates" }],
+          eez: [{ key: "exclusive_economic_zones", styleKey: "eez" }],
+          indiaOutline: [{ key: "india_outline", styleKey: "india_outline" }],
+          territorialSea: [
+            { key: "maritime_zones_territorial_sea", path: "maritime-zones/territorial-sea", styleKey: "territorial_sea" },
+          ],
+          contiguousZone: [
+            { key: "maritime_zones_contiguous_zone", path: "maritime-zones/contiguous-zone", styleKey: "contiguous_zone" },
+          ],
+          internalWaters: [
+            { key: "maritime_zones_internal_waters", path: "maritime-zones/internal-waters", styleKey: "internal_waters" },
+          ],
+          archipelagicWaters: [
+            { key: "maritime_zones_archipelagic_waters", path: "maritime-zones/archipelagic-waters", styleKey: "archipelagic_waters" },
+          ],
+          highSeas: [
+            { key: "maritime_zones_high_seas", path: "maritime-zones/high-seas", styleKey: "high_seas" },
+          ],
+          extendedShelf: [
+            {
+              key: "maritime_zones_extended_continental_shelf",
+              path: "maritime-zones/extended-continental-shelf",
+              styleKey: "extended_continental_shelf",
+            },
+          ],
+          undersea: [{ key: "undersea_cables" }],
+          ports: [{ key: "ports_and_anchorages" }],
+          slocs: [{ key: "slocs" }, { key: "strategic_chokepoints" }],
+          heatmap: [{ key: "daily_ior_heatmap" }],
+        };
+        if (layerKey === "eez" && visible) {
+          showToast("Global EEZ overlay enabled.");
+        }
+        if (layerKey === "territorialSea" && visible) {
+          showToast("Territorial seas overlay active.");
+        }
+        if (layerKey === "highSeas" && visible) {
+          showToast("High seas reference grid enabled.");
+        }
+        layersState[layerKey] = visible;
+        (mapping[layerKey] || []).forEach((entry) => toggleOverlay(entry, visible));
+      }
+
+
+      async function toggleOverlay(entry, visible) {
+        const config = typeof entry === "string" ? { key: entry } : entry;
+        const { key, path, styleKey } = config;
+        if (!map.loaded()) {
+          await new Promise((resolve) => map.once("load", resolve));
+        }
+        if (!layerRegistry.has(key)) {
+          const fetchPath = path || key.replace(/_/g, "-");
+          const response = await fetch(`/layers/${fetchPath}`);
+          if (!response.ok) {
+            console.warn(`Layer fetch failed for ${fetchPath}`);
+            return;
+          }
+          const payload = await response.json();
+          const sourceId = key;
+          let collection = { type: "FeatureCollection", features: [] };
+          const styleToken = styleKey || key;
+          if (zoneStyles[styleToken]) {
+            collection = payload;
+          } else if (key === "undersea_cables" || key === "major_shipping_lanes" || key === "slocs") {
+            collection.features = payload.map((entry) => ({
+              type: "Feature",
+              geometry: { type: "LineString", coordinates: entry.coordinates.map((coord) => [coord[1], coord[0]]) },
+              properties: { name_en: entry.name?.en, name_hi: entry.name?.hi },
+            }));
+          } else if (key === "strategic_chokepoints" || key === "ports_and_anchorages") {
+            collection.features = payload.map((entry) => ({
+              type: "Feature",
+              geometry: { type: "Point", coordinates: [entry.coordinates[1], entry.coordinates[0]] },
+              properties: { name_en: entry.name?.en, name_hi: entry.name?.hi },
+            }));
+          } else if (key === "aoi_templates") {
+            collection.features = payload.map((entry) => ({
+              type: "Feature",
+              geometry: {
+                type: "Polygon",
+                coordinates: [entry.coordinates.map((coord) => [coord[1], coord[0]])],
+              },
+              properties: { name_en: entry.name?.en, name_hi: entry.name?.hi },
+            }));
+          } else if (key === "daily_ior_heatmap") {
+            collection.features = payload.map((entry) => ({
+              type: "Feature",
+              geometry: { type: "Point", coordinates: [entry.coordinates[1], entry.coordinates[0]] },
+              properties: { intensity: entry.intensity },
+            }));
+          }
+          if (!map.getSource(sourceId)) {
+            map.addSource(sourceId, { type: "geojson", data: collection });
+          }
+          const layerIds = [];
+          const zoneStyle = zoneStyles[styleToken];
+          if (zoneStyle) {
+            const fillId = `${key}-fill`;
+            map.addLayer({
+              id: fillId,
+              type: "fill",
+              source: sourceId,
+              paint: {
+                "fill-color": zoneStyle.fill,
+                "fill-outline-color": zoneStyle.outline,
+              },
+            });
+            layerIds.push(fillId);
+            const outlineId = `${key}-outline`;
+            map.addLayer({
+              id: outlineId,
+              type: "line",
+              source: sourceId,
+              paint: {
+                "line-color": zoneStyle.outline,
+                "line-width": zoneStyle.width ?? 1.5,
+              },
+            });
+            layerIds.push(outlineId);
+          }
+          if (key === "strategic_chokepoints" || key === "ports_and_anchorages") {
+            const circleId = `${key}-circles`;
+            map.addLayer({
+              id: circleId,
+              type: "circle",
+              source: sourceId,
+              paint: {
+                "circle-color": key === "strategic_chokepoints" ? "#f59e0b" : "#38bdf8",
+                "circle-radius": 6,
+                "circle-opacity": 0.85,
+                "circle-stroke-color": "rgba(15, 23, 42, 0.8)",
+                "circle-stroke-width": 1.5,
+              },
+            });
+            layerIds.push(circleId);
+          }
+          if (key === "undersea_cables" || key === "major_shipping_lanes" || key === "slocs") {
+            const lineId = `${key}-lines`;
+            map.addLayer({
+              id: lineId,
+              type: "line",
+              source: sourceId,
+              paint: {
+                "line-color": key === "undersea_cables" ? "#38bdf8" : "#22d3ee",
+                "line-width": 2.2,
+                "line-dasharray": key === "undersea_cables" ? [2, 1] : [1.2, 1.2],
+                "line-opacity": 0.75,
+              },
+            });
+            layerIds.push(lineId);
+          }
+          if (key === "aoi_templates") {
+            const fillId = `${key}-fill`;
+            const outlineId = `${key}-outline`;
+            map.addLayer({
+              id: fillId,
+              type: "fill",
+              source: sourceId,
+              paint: {
+                "fill-color": "rgba(59, 130, 246, 0.18)",
+                "fill-outline-color": "rgba(59, 130, 246, 0.4)",
+              },
+            });
+            map.addLayer({
+              id: outlineId,
+              type: "line",
+              source: sourceId,
+              paint: {
+                "line-color": "rgba(59, 130, 246, 0.6)",
+                "line-width": 1.5,
+              },
+            });
+            layerIds.push(fillId, outlineId);
+          }
+          if (key === "daily_ior_heatmap") {
+            const heatId = `${key}-heat`;
+            const circleId = `${key}-dots`;
+            map.addLayer({
+              id: heatId,
+              type: "heatmap",
+              source: sourceId,
+              maxzoom: 7,
+              paint: {
+                "heatmap-weight": ["interpolate", ["linear"], ["get", "intensity"], 0, 0, 1, 1],
+                "heatmap-intensity": 1.2,
+                "heatmap-radius": 40,
+                "heatmap-color": [
+                  "interpolate",
+                  ["linear"],
+                  ["heatmap-density"],
+                  0,
+                  "rgba(14, 165, 233, 0)",
+                  0.4,
+                  "rgba(59, 130, 246, 0.6)",
+                  0.7,
+                  "rgba(147, 197, 253, 0.8)",
+                  1,
+                  "rgba(248, 250, 252, 0.95)",
+                ],
+              },
+            });
+            map.addLayer({
+              id: circleId,
+              type: "circle",
+              source: sourceId,
+              minzoom: 6,
+              paint: {
+                "circle-radius": ["interpolate", ["linear"], ["get", "intensity"], 0, 4, 1, 10],
+                "circle-color": "rgba(59, 130, 246, 0.9)",
+                "circle-opacity": 0.6,
+              },
+            });
+            layerIds.push(heatId, circleId);
+          }
+          layerRegistry.set(key, { sourceId, layerIds });
+        }
+        const registry = layerRegistry.get(key);
+        registry.layerIds.forEach((id) => {
+          if (map.getLayer(id)) {
+            map.setLayoutProperty(id, "visibility", visible ? "visible" : "none");
+          }
+        });
+      }
+
+
+      function normaliseFeatureCollection(input) {
+        if (!input) {
+          return null;
+        }
+        if (input.type === "FeatureCollection") {
+          return input;
+        }
+        if (input.type === "Feature") {
+          return { type: "FeatureCollection", features: [input] };
+        }
+        if (Array.isArray(input)) {
+          return { type: "FeatureCollection", features: input.filter(Boolean) };
+        }
+        return null;
+      }
+
+      function detectGeometryType(collection) {
+        const first = collection.features.find((feature) => feature?.geometry?.type);
+        return first?.geometry?.type || "Unknown";
+      }
+
+      function computeFeatureBounds(collection) {
+        let minLon = Infinity;
+        let minLat = Infinity;
+        let maxLon = -Infinity;
+        let maxLat = -Infinity;
+        const update = (lon, lat) => {
+          if (typeof lon !== "number" || typeof lat !== "number") {
+            return;
+          }
+          if (lon < minLon) minLon = lon;
+          if (lat < minLat) minLat = lat;
+          if (lon > maxLon) maxLon = lon;
+          if (lat > maxLat) maxLat = lat;
+        };
+        const walk = (coords) => {
+          if (!Array.isArray(coords)) {
+            return;
+          }
+          if (typeof coords[0] === "number" && typeof coords[1] === "number") {
+            update(coords[0], coords[1]);
+          } else {
+            coords.forEach(walk);
+          }
+        };
+        collection.features.forEach((feature) => {
+          if (feature?.geometry?.coordinates) {
+            walk(feature.geometry.coordinates);
+          }
+        });
+        if (minLon === Infinity) {
+          return null;
+        }
+        return [
+          [minLon, minLat],
+          [maxLon, maxLat],
+        ];
+      }
+
+      function gatherCustomLayerStyle() {
+        return {
+          color: document.getElementById("customLayerColor").value || "#38bdf8",
+          width: Number(document.getElementById("customLayerWidth").value) || 3,
+          opacity: Number(document.getElementById("customLayerOpacity").value) || 0.9,
+          fillOpacity: Number(document.getElementById("customLayerFillOpacity").value) || 0.35,
+        };
+      }
+
+      function addCustomLayerToMap(layerId, collection, style, geometryType, name) {
+        if (!map.getSource(layerId)) {
+          map.addSource(layerId, { type: "geojson", data: collection });
+        } else {
+          map.getSource(layerId).setData(collection);
+        }
+        const layerIds = [];
+        const layerRefs = {};
+        if (geometryType.includes("Polygon")) {
+          const fillId = `${layerId}-fill`;
+          const outlineId = `${layerId}-outline`;
+          map.addLayer({
+            id: fillId,
+            type: "fill",
+            source: layerId,
+            paint: {
+              "fill-color": style.color,
+              "fill-opacity": style.fillOpacity,
+            },
+          });
+          map.addLayer({
+            id: outlineId,
+            type: "line",
+            source: layerId,
+            paint: {
+              "line-color": style.color,
+              "line-width": style.width,
+              "line-opacity": style.opacity,
+            },
+          });
+          layerIds.push(fillId, outlineId);
+          layerRefs.fill = fillId;
+          layerRefs.outline = outlineId;
+        } else if (geometryType.includes("Line")) {
+          const lineId = `${layerId}-line`;
+          map.addLayer({
+            id: lineId,
+            type: "line",
+            source: layerId,
+            paint: {
+              "line-color": style.color,
+              "line-width": style.width,
+              "line-opacity": style.opacity,
+            },
+          });
+          layerIds.push(lineId);
+          layerRefs.line = lineId;
+        } else {
+          const pointId = `${layerId}-points`;
+          map.addLayer({
+            id: pointId,
+            type: "circle",
+            source: layerId,
+            paint: {
+              "circle-color": style.color,
+              "circle-radius": Math.max(2, style.width * 1.4),
+              "circle-opacity": style.opacity,
+              "circle-stroke-width": 1.1,
+              "circle-stroke-color": "rgba(15, 23, 42, 0.8)",
+            },
+          });
+          layerIds.push(pointId);
+          layerRefs.points = pointId;
+        }
+        const bounds = computeFeatureBounds(collection);
+        customLayers.set(layerId, {
+          name,
+          sourceId: layerId,
+          geometry: geometryType,
+          layerIds,
+          layers: layerRefs,
+          style: { ...style },
+          bounds,
+          data: collection,
+          visible: true,
+        });
+      }
+
+      function renderCustomLayerList() {
+        const container = document.getElementById("customLayerList");
+        container.innerHTML = "";
+        if (!customLayers.size) {
+          container.innerHTML = '<div class="muted">No custom layers yet.</div>';
+          return;
+        }
+        customLayers.forEach((layer, id) => {
+          const item = document.createElement("div");
+          item.className = "custom-layer-item";
+          const header = document.createElement("header");
+          const title = document.createElement("span");
+          title.textContent = layer.name;
+          const toggleLabel = document.createElement("label");
+          toggleLabel.textContent = "Visible";
+          const toggle = document.createElement("input");
+          toggle.type = "checkbox";
+          toggle.checked = layer.visible;
+          toggle.addEventListener("change", (event) => {
+            setCustomLayerVisibility(id, event.target.checked);
+          });
+          toggleLabel.prepend(toggle);
+          header.append(title, toggleLabel);
+          item.append(header);
+
+          const controls = document.createElement("div");
+          controls.className = "controls";
+
+          const colorLabel = document.createElement("label");
+          colorLabel.textContent = "Color";
+          const colorInput = document.createElement("input");
+          colorInput.type = "color";
+          colorInput.value = layer.style.color;
+          colorInput.addEventListener("input", (event) => {
+            updateCustomLayerStyle(id, { color: event.target.value });
+          });
+          colorLabel.append(colorInput);
+          controls.append(colorLabel);
+
+          const widthLabel = document.createElement("label");
+          widthLabel.textContent = layer.geometry.includes("Point") ? "Point Size" : "Line Width";
+          const widthInput = document.createElement("input");
+          widthInput.type = "range";
+          widthInput.min = "1";
+          widthInput.max = "10";
+          widthInput.step = "1";
+          widthInput.value = String(layer.style.width);
+          widthInput.addEventListener("input", (event) => {
+            updateCustomLayerStyle(id, { width: Number(event.target.value) });
+          });
+          widthLabel.append(widthInput);
+          controls.append(widthLabel);
+
+          if (layer.geometry.includes("Polygon")) {
+            const fillLabel = document.createElement("label");
+            fillLabel.classList.add("full");
+            fillLabel.textContent = "Fill Opacity";
+            const fillInput = document.createElement("input");
+            fillInput.type = "range";
+            fillInput.min = "0";
+            fillInput.max = "1";
+            fillInput.step = "0.05";
+            fillInput.value = String(layer.style.fillOpacity);
+            fillInput.addEventListener("input", (event) => {
+              updateCustomLayerStyle(id, { fillOpacity: Number(event.target.value) });
+            });
+            fillLabel.append(fillInput);
+            controls.append(fillLabel);
+          }
+
+          const opacityLabel = document.createElement("label");
+          if (layer.geometry.includes("Polygon")) {
+            opacityLabel.classList.add("full");
+            opacityLabel.textContent = "Stroke Opacity";
+          } else {
+            opacityLabel.textContent = layer.geometry.includes("Line") ? "Line Opacity" : "Symbol Opacity";
+          }
+          const opacityInput = document.createElement("input");
+          opacityInput.type = "range";
+          opacityInput.min = "0";
+          opacityInput.max = "1";
+          opacityInput.step = "0.05";
+          opacityInput.value = String(layer.style.opacity);
+          opacityInput.addEventListener("input", (event) => {
+            updateCustomLayerStyle(id, { opacity: Number(event.target.value) });
+          });
+          opacityLabel.append(opacityInput);
+          controls.append(opacityLabel);
+
+          item.append(controls);
+
+          const actions = document.createElement("div");
+          actions.className = "actions";
+          const zoomButton = document.createElement("button");
+          zoomButton.textContent = "Zoom";
+          zoomButton.addEventListener("click", () => zoomToCustomLayer(id));
+          const removeButton = document.createElement("button");
+          removeButton.textContent = "Remove";
+          removeButton.addEventListener("click", () => removeCustomLayer(id));
+          actions.append(zoomButton, removeButton);
+          item.append(actions);
+
+          container.append(item);
+        });
+      }
+
+      function setCustomLayerVisibility(id, visible) {
+        const layer = customLayers.get(id);
+        if (!layer) {
+          return;
+        }
+        layer.visible = visible;
+        layer.layerIds.forEach((layerId) => {
+          if (map.getLayer(layerId)) {
+            map.setLayoutProperty(layerId, "visibility", visible ? "visible" : "none");
+          }
+        });
+      }
+
+      function updateCustomLayerStyle(id, partial) {
+        const layer = customLayers.get(id);
+        if (!layer) {
+          return;
+        }
+        layer.style = { ...layer.style, ...partial };
+        if (layer.geometry.includes("Polygon")) {
+          if (layer.layers.fill && map.getLayer(layer.layers.fill)) {
+            if (partial.color) {
+              map.setPaintProperty(layer.layers.fill, "fill-color", layer.style.color);
+            }
+            if (partial.fillOpacity !== undefined) {
+              map.setPaintProperty(layer.layers.fill, "fill-opacity", layer.style.fillOpacity);
+            }
+          }
+          if (layer.layers.outline && map.getLayer(layer.layers.outline)) {
+            if (partial.color) {
+              map.setPaintProperty(layer.layers.outline, "line-color", layer.style.color);
+            }
+            if (partial.width !== undefined) {
+              map.setPaintProperty(layer.layers.outline, "line-width", layer.style.width);
+            }
+            if (partial.opacity !== undefined) {
+              map.setPaintProperty(layer.layers.outline, "line-opacity", layer.style.opacity);
+            }
+          }
+        } else if (layer.geometry.includes("Line")) {
+          const lineId = layer.layers.line;
+          if (lineId && map.getLayer(lineId)) {
+            if (partial.color) {
+              map.setPaintProperty(lineId, "line-color", layer.style.color);
+            }
+            if (partial.width !== undefined) {
+              map.setPaintProperty(lineId, "line-width", layer.style.width);
+            }
+            if (partial.opacity !== undefined) {
+              map.setPaintProperty(lineId, "line-opacity", layer.style.opacity);
+            }
+          }
+        } else {
+          const pointId = layer.layers.points;
+          if (pointId && map.getLayer(pointId)) {
+            if (partial.color) {
+              map.setPaintProperty(pointId, "circle-color", layer.style.color);
+            }
+            if (partial.width !== undefined) {
+              map.setPaintProperty(pointId, "circle-radius", Math.max(2, layer.style.width * 1.4));
+            }
+            if (partial.opacity !== undefined) {
+              map.setPaintProperty(pointId, "circle-opacity", layer.style.opacity);
+            }
+          }
+        }
+      }
+
+      function removeCustomLayer(id) {
+        const layer = customLayers.get(id);
+        if (!layer) {
+          return;
+        }
+        layer.layerIds.forEach((layerId) => {
+          if (map.getLayer(layerId)) {
+            map.removeLayer(layerId);
+          }
+        });
+        if (map.getSource(layer.sourceId)) {
+          map.removeSource(layer.sourceId);
+        }
+        customLayers.delete(id);
+        renderCustomLayerList();
+      }
+
+      function zoomToCustomLayer(id) {
+        const layer = customLayers.get(id);
+        if (!layer || !layer.bounds) {
+          showToast("No extent available for this layer.");
+          return;
+        }
+        map.fitBounds(layer.bounds, { padding: 80, duration: 1000, maxZoom: 9 });
+      }
+
+      function handleCustomLayerUpload() {
+        const fileInput = document.getElementById("customLayerFile");
+        const file = fileInput.files && fileInput.files[0];
+        if (!file) {
+          showToast("Select a GeoJSON layer to ingest.");
+          return;
+        }
+        const extension = file.name.toLowerCase();
+        if (!extension.endsWith(".geojson") && !extension.endsWith(".json")) {
+          showToast("GeoJSON is supported in this demo. Other formats require the GDAL conversion service.");
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const raw = JSON.parse(reader.result);
+            const collection = normaliseFeatureCollection(raw);
+            if (!collection || !collection.features?.length) {
+              showToast("Uploaded file did not contain usable features.");
+              return;
+            }
+            const geometryType = detectGeometryType(collection);
+            if (!geometryType || geometryType === "Unknown") {
+              showToast("Unable to determine geometry type for uploaded layer.");
+              return;
+            }
+            const layerId = `custom-layer-${Date.now()}`;
+            const style = gatherCustomLayerStyle();
+            addCustomLayerToMap(layerId, collection, style, geometryType, file.name);
+            renderCustomLayerList();
+            showToast(`Custom layer "${file.name}" loaded.`);
+            fileInput.value = "";
+          } catch (error) {
+            console.error(error);
+            showToast("Failed to parse GeoJSON payload.");
+          }
+        };
+        reader.onerror = () => showToast("Could not read selected file.");
+        reader.readAsText(file);
+      }
+
+      renderCustomLayerList();
+
+      document.getElementById("addCustomLayer").addEventListener("click", handleCustomLayerUpload);
+
+      document.querySelectorAll("[data-layer]").forEach((checkbox) => {
+        checkbox.addEventListener("change", (event) => {
+          setLayerVisibility(event.target.dataset.layer, event.target.checked);
+        });
+      });
+
+      document.getElementById("aiToggle").addEventListener("click", () => {
+        const panel = document.getElementById("aiPanel");
+        panel.classList.toggle("collapsed");
+      });
+
+      document.getElementById("aoiToggle").addEventListener("click", () => {
+        document.getElementById("aoiDrawer").classList.toggle("open");
+      });
+
+      document.getElementById("drawAoi").addEventListener("click", () => {
+        drawingAoi = true;
+        currentAoi = [];
+        document.getElementById("aoiStatus").textContent = "Drawing active – click on map to add vertices.";
+        map.getCanvas().style.cursor = "crosshair";
+      });
+
+      document.getElementById("saveAoi").addEventListener("click", () => {
+        if (currentAoi.length < 3) {
+          showToast("Add at least three vertices to save an AOI.");
+          return;
+        }
+        savedAoIs.push({ id: `AOI-${savedAoIs.length + 1}`, coords: [...currentAoi] });
+        renderSavedAoIs();
+        currentAoi = [];
+        drawingAoi = false;
+        map.getCanvas().style.cursor = "";
+        document.getElementById("aoiStatus").textContent = "AOI saved. Use actions to query vessels.";
+      });
+
+      function renderSavedAoIs() {
+        const list = document.getElementById("aoiList");
+        if (!savedAoIs.length) {
+          list.textContent = "No AOIs saved yet.";
+          return;
+        }
+        list.innerHTML = savedAoIs
+          .map((aoi) => `<div>${aoi.id} – ${aoi.coords.length} pts</div>`)
+          .join("");
+        const feature = {
+          type: "FeatureCollection",
+          features: savedAoIs.map((aoi) => ({
+            type: "Feature",
+            geometry: { type: "Polygon", coordinates: [[...aoi.coords, aoi.coords[0]]] },
+            properties: { id: aoi.id },
+          })),
+        };
+        if (!map.getSource("user-aois")) {
+          map.addSource("user-aois", { type: "geojson", data: feature });
+          map.addLayer({
+            id: "user-aois-fill",
+            type: "fill",
+            source: "user-aois",
+            paint: {
+              "fill-color": "rgba(34, 197, 94, 0.18)",
+              "fill-outline-color": "rgba(34, 197, 94, 0.55)",
+            },
+          });
+          map.addLayer({
+            id: "user-aois-outline",
+            type: "line",
+            source: "user-aois",
+            paint: {
+              "line-color": "rgba(34, 197, 94, 0.8)",
+              "line-width": 2,
+            },
+          });
+        } else {
+          map.getSource("user-aois").setData(feature);
+        }
+      }
+
+      function pointInPolygon(point, polygon) {
+        let inside = false;
+        for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+          const xi = polygon[i][0];
+          const yi = polygon[i][1];
+          const xj = polygon[j][0];
+          const yj = polygon[j][1];
+          const intersect = yi > point[1] !== yj > point[1] &&
+            point[0] < ((xj - xi) * (point[1] - yi)) / (yj - yi + Number.EPSILON) + xi;
+          if (intersect) inside = !inside;
+        }
+        return inside;
+      }
+
+      function vesselsInsideAOI(aoi) {
+        return latestSnapshot.vessels.filter((vessel) =>
+          pointInPolygon([vessel.longitude, vessel.latitude], aoi.coords)
+        );
+      }
+
+      document.getElementById("queryAoiIngress").addEventListener("click", () => {
+        if (!savedAoIs.length) {
+          showToast("Save an AOI to query ingress events.");
+          return;
+        }
+        const vessels = vesselsInsideAOI(savedAoIs[savedAoIs.length - 1]);
+        document.getElementById("aiOutput").innerHTML = `
+          <strong>AOI Ingress Summary</strong>
+          ${vessels.length} vessels currently inside ${savedAoIs[savedAoIs.length - 1].id}.
+        `;
+      });
+
+      document.getElementById("queryAoiDark").addEventListener("click", () => {
+        if (!savedAoIs.length) {
+          showToast("Save an AOI to evaluate dark spots.");
+          return;
+        }
+        fetch("/analysis/indian-ocean")
+          .then((response) => response.json())
+          .then((summary) => {
+            document.getElementById("aiOutput").innerHTML = `
+              <strong>Dark Activity Scan</strong>
+              High confidence gaps: ${summary.summary.high_confidence_events}. Average blackout ${summary.summary.average_gap_minutes} minutes.
+            `;
+          });
+      });
+
+      document.getElementById("queryAoiLoitering").addEventListener("click", () => {
+        if (!savedAoIs.length) {
+          showToast("Save an AOI to run loitering analysis.");
+          return;
+        }
+        const vessels = vesselsInsideAOI(savedAoIs[savedAoIs.length - 1]);
+        const slow = vessels.filter((v) => v.sog < 5);
+        document.getElementById("aiOutput").innerHTML = `
+          <strong>Loitering Detection</strong>
+          ${slow.length} vessels under 5 kn lingering inside AOI.
+        `;
+      });
+
+      document.getElementById("downloadAoi").addEventListener("click", () => {
+        if (!savedAoIs.length) {
+          showToast("Save an AOI to export tracks.");
+          return;
+        }
+        const vessels = vesselsInsideAOI(savedAoIs[savedAoIs.length - 1]);
+        const rows = ["mmsi,name,latitude,longitude,sog,cog,status"];
+        vessels.forEach((v) => {
+          rows.push(`${v.mmsi},${v.name},${v.latitude},${v.longitude},${v.sog},${v.cog},${v.status}`);
+        });
+        const blob = new Blob([rows.join("\n")], { type: "text/csv" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "aoi_tracks.csv";
+        link.click();
+        URL.revokeObjectURL(url);
+        showToast("AOI tracks exported.");
+      });
+
+      map.on("click", (event) => {
+        if (!drawingAoi) return;
+        const lngLat = [event.lngLat.lng, event.lngLat.lat];
+        currentAoi.push(lngLat);
+        document.getElementById("aoiStatus").textContent = `${currentAoi.length} vertices plotted.`;
+        if (!map.getSource("draft-aoi")) {
+          map.addSource("draft-aoi", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+          map.addLayer({
+            id: "draft-aoi-outline",
+            type: "line",
+            source: "draft-aoi",
+            paint: {
+              "line-color": "rgba(56, 189, 248, 0.85)",
+              "line-width": 2,
+              "line-dasharray": [1, 1.2],
+            },
+          });
+        }
+        if (currentAoi.length >= 2) {
+          const feature = {
+            type: "FeatureCollection",
+            features: [
+              {
+                type: "Feature",
+                geometry: {
+                  type: "LineString",
+                  coordinates: currentAoi,
+                },
+                properties: {},
+              },
+            ],
+          };
+          map.getSource("draft-aoi").setData(feature);
+        }
+      });
+
+      map.on("dblclick", () => {
+        if (!drawingAoi || currentAoi.length < 3) return;
+        drawingAoi = false;
+        map.getCanvas().style.cursor = "";
+        document.getElementById("aoiStatus").textContent = "Double-click captured AOI vertices. Click save to store.";
+      });
+
+      document.querySelectorAll(".tabs button").forEach((button) => {
+        button.addEventListener("click", () => {
+          document.querySelectorAll(".tabs button").forEach((btn) => btn.classList.remove("active"));
+          document.querySelectorAll(".tab-panel").forEach((panel) => panel.classList.remove("active"));
+          button.classList.add("active");
+          const panel = document.querySelector(`[data-panel="${button.dataset.tab}"]`);
+          if (panel) panel.classList.add("active");
+        });
+      });
+
+      document.getElementById("closeVessel").addEventListener("click", () => {
+        document.getElementById("vesselPanel").classList.remove("open");
+        selectedVessel = null;
+        vesselMarkers.forEach((record) => record.element.classList.remove("active"));
+        if (map.getLayer("selected-track-line")) {
+          map.removeLayer("selected-track-line");
+        }
+        if (map.getSource("selected-track")) {
+          map.removeSource("selected-track");
+        }
+      });
+
+      document.querySelectorAll(".ai-examples button").forEach((button) => {
+        button.addEventListener("click", () => {
+          document.getElementById("aiInput").value = button.dataset.example;
+        });
+      });
+
+      document.getElementById("runQuery").addEventListener("click", () => {
+        const query = document.getElementById("aiInput").value.trim();
+        if (!query) {
+          showToast("Enter a query to run analytics.");
+          return;
+        }
+        fetch("/analysis/indian-ocean")
+          .then((response) => response.json())
+          .then((payload) => {
+            document.getElementById("aiOutput").innerHTML = `
+              <strong>Query Received</strong>
+              ${query}<br />
+              Indian Ocean baseline: ${payload.summary.total_events} dark events, ${payload.summary.high_confidence_events} high confidence.
+            `;
+          });
+      });
+
+      document.getElementById("generateReport").addEventListener("click", () => {
+        document.getElementById("aiOutput").innerHTML = `
+          <strong>Report Drafted</strong>
+          Summary exported with bilingual labelling and map overlays queued for download.
+        `;
+        showToast("Report compilation simulated – connect backend to export.");
+      });
+
+      function connectWebSocket() {
+        const protocol = location.protocol === "https:" ? "wss" : "ws";
+        const socket = new WebSocket(`${protocol}://${location.host}/ws/ais`);
+        socket.onmessage = (event) => {
+          const payload = JSON.parse(event.data);
+          latestSnapshot = payload;
+          updateVesselMarkers(payload.vessels);
+          syncSarMarkers(payload.sar_hits || []);
+          renderEvents(payload.alerts || []);
+        };
+        socket.onclose = () => {
+          setTimeout(connectWebSocket, 2000);
+        };
+        socket.onerror = () => socket.close();
+      }
+
+      connectWebSocket();
+    </script>
+  </body>
+</html>
