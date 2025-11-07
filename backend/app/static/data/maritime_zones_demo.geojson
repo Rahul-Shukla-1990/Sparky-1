@@ -1,0 +1,147 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "zone": "territorial_sea",
+        "country": "India",
+        "distance_nm": 12,
+        "name": {"en": "India Territorial Sea", "hi": "भारत का प्रादेशिक समुद्र"}
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [66.0, 7.0],
+            [83.0, 7.0],
+            [83.0, 23.5],
+            [66.0, 23.5],
+            [66.0, 7.0]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zone": "territorial_sea",
+        "country": "Sri Lanka",
+        "distance_nm": 12,
+        "name": {"en": "Sri Lanka Territorial Sea", "hi": "श्रीलंका का प्रादेशिक समुद्र"}
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [78.2, 5.0],
+            [82.0, 5.0],
+            [82.0, 10.0],
+            [78.2, 10.0],
+            [78.2, 5.0]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zone": "contiguous_zone",
+        "country": "India",
+        "distance_nm": 24,
+        "name": {"en": "India Contiguous Zone", "hi": "भारत का सन्निकट क्षेत्र"}
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [64.0, 6.0],
+            [85.0, 6.0],
+            [85.0, 24.5],
+            [64.0, 24.5],
+            [64.0, 6.0]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zone": "internal_waters",
+        "country": "India",
+        "name": {"en": "Mumbai Internal Waters", "hi": "मुंबई के आंतरिक जल"}
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [72.6, 18.7],
+            [72.95, 18.7],
+            [72.95, 19.2],
+            [72.6, 19.2],
+            [72.6, 18.7]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zone": "archipelagic_waters",
+        "country": "India",
+        "name": {"en": "Andaman & Nicobar Archipelagic Waters", "hi": "अंडमान और निकोबार द्वीपीय जल"}
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [92.2, 6.2],
+            [93.3, 6.2],
+            [93.3, 13.6],
+            [92.2, 13.6],
+            [92.2, 6.2]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zone": "high_seas",
+        "name": {"en": "Central Indian Ocean High Seas", "hi": "मध्य हिंद महासागर का उच्च समुद्र"}
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [60.0, -5.0],
+            [80.0, -5.0],
+            [80.0, -20.0],
+            [60.0, -20.0],
+            [60.0, -5.0]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zone": "extended_continental_shelf",
+        "country": "India",
+        "name": {"en": "Bay of Bengal Extended Shelf", "hi": "बंगाल की खाड़ी का विस्तारित महाद्वीपीय तल"}
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [82.0, 17.0],
+            [90.0, 17.0],
+            [90.0, 22.5],
+            [82.0, 22.5],
+            [82.0, 17.0]
+          ]
+        ]
+      }
+    }
+  ]
+}
