@@ -1,0 +1,63 @@
+sources:
+  - name: "GDELT Maritime Incident Query"
+    source_type: "global_news_open_data"
+    url: '("maritime incident" OR piracy OR "armed robbery at sea" OR "illegal fishing" OR "oil spill" OR "vessel collision" OR "vessel seized" OR "port cyberattack" OR "GNSS interference") ("Indian Ocean" OR "Gulf of Aden" OR "Arabian Sea" OR "Bay of Bengal" OR "Malacca" OR "Gulf of Guinea" OR "Red Sea" OR "Hormuz" OR "Philippines Sea" OR "Singapore Strait")'
+    collection_method: "gdelt_query"
+    trust_tier: 2
+    region: "Broad IOR"
+    enabled: true
+    frequency_minutes: 60
+
+  - name: "GDELT Piracy and Armed Robbery Query"
+    source_type: "global_news_open_data"
+    url: '(piracy OR pirate OR "armed robbery at sea" OR "vessel boarded" OR hijacked OR "suspicious approach") ("Indian Ocean" OR "Gulf of Aden" OR Somalia OR "Gulf of Guinea" OR "Singapore Strait" OR Malacca)'
+    collection_method: "gdelt_query"
+    trust_tier: 2
+    region: "Broad IOR"
+    enabled: true
+    frequency_minutes: 60
+
+  - name: "GDELT Maritime Pollution Query"
+    source_type: "global_news_open_data"
+    url: '("oil spill" OR "marine pollution" OR "chemical spill" OR "bunker leak") (ship OR vessel OR tanker OR port) ("Indian Ocean" OR "Arabian Sea" OR "Bay of Bengal" OR "Gulf of Guinea" OR "Red Sea" OR "South China Sea")'
+    collection_method: "gdelt_query"
+    trust_tier: 2
+    region: "Broad IOR"
+    enabled: true
+    frequency_minutes: 120
+
+  - name: "UKMTO Recent Incidents"
+    source_type: "official_maritime_advisory"
+    url: "https://www.ukmto.org/recent-incidents"
+    collection_method: "static_page"
+    trust_tier: 1
+    region: "Western Indian Ocean / Gulf / Red Sea"
+    enabled: true
+    frequency_minutes: 30
+
+  - name: "ReCAAP ISC News"
+    source_type: "regional_maritime_security"
+    url: "https://www.recaap.org/news"
+    collection_method: "static_page"
+    trust_tier: 1
+    region: "Asia / Malacca / Singapore Strait"
+    enabled: true
+    frequency_minutes: 180
+
+  - name: "IMO News"
+    source_type: "international_maritime_body"
+    url: "https://www.imo.org/en/MediaCentre/PressBriefings/Pages/Home.aspx"
+    collection_method: "static_page"
+    trust_tier: 1
+    region: "Global Maritime"
+    enabled: true
+    frequency_minutes: 360
+
+  - name: "Maritime Executive RSS"
+    source_type: "maritime_news"
+    url: "https://maritime-executive.com/rss"
+    collection_method: "rss"
+    trust_tier: 2
+    region: "Global Maritime"
+    enabled: true
+    frequency_minutes: 60
